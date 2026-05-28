@@ -1,0 +1,28 @@
+[tools]
+python = "3.12.13"
+"aqua:astral-sh/uv" = "latest"
+
+[env]
+PYTHONPATH = "{{cwd}}"
+# auto-activate the uv-managed venv once it exists
+_.python.venv = { path = ".venv", create = false }
+
+[tasks.setup]
+description = "Install all Python dependencies (creates .venv)"
+run = "./tools/setup_dependencies.sh"
+
+[tasks.build]
+description = "Build Cython/C++ extensions with SCons"
+run = "scons -j$(sysctl -n hw.logicalcpu 2>/dev/null || nproc)"
+
+[tasks.test]
+description = "Run unit tests"
+run = "pytest"
+
+[tasks.lint]
+description = "Run static analysis and style checks"
+run = "./scripts/lint/lint.sh"
+
+[tasks.check]
+description = "Full CI-equivalent: build then test"
+depends = ["build", "test"]
