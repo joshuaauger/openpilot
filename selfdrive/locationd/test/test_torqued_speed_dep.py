@@ -3,16 +3,26 @@
 Uses get_speed_dep_config() to discover configured cars.
 All tests are driven by config, not hardcoded fingerprints.
 """
+
+from unittest.mock import MagicMock, patch  # noqa: TID251
+
 import numpy as np
 import pytest
 
-from unittest.mock import MagicMock, patch  # noqa: TID251
 from opendbc.sunnypilot.car.interfaces import get_speed_dep_config
 from openpilot.selfdrive.locationd.torqued import (
-  TorqueEstimator, TorqueBuckets, VERSION, MIN_FILTER_DECAY,
+  MIN_FILTER_DECAY,
+  VERSION,
+  TorqueBuckets,
+  TorqueEstimator,
 )
 from openpilot.sunnypilot.selfdrive.locationd.torqued_ext import (
-  DEFAULT_SPEED_BIN_BOUNDS as SPEED_BIN_BOUNDS, DEFAULT_SPEED_BIN_CENTERS as SPEED_BIN_CENTERS,
+  DEFAULT_SPEED_BIN_BOUNDS as SPEED_BIN_BOUNDS,
+)
+from openpilot.sunnypilot.selfdrive.locationd.torqued_ext import (
+  DEFAULT_SPEED_BIN_CENTERS as SPEED_BIN_CENTERS,
+)
+from openpilot.sunnypilot.selfdrive.locationd.torqued_ext import (
   TorqueEstimatorExt,
 )
 
@@ -31,10 +41,12 @@ PATCH_EXT_PARAMS = 'openpilot.sunnypilot.selfdrive.locationd.torqued_ext.Params'
 
 def _setup_ext_mock(mock_ext_params_cls, speed_dep_on):
   """Configure the torqued_ext Params mock for toggle state."""
+
   def _get_bool(param):
     if param == "SpeedDependentTorqueToggle":
       return speed_dep_on
     return False
+
   mock_ext_params_cls.return_value.get_bool.side_effect = _get_bool
   mock_ext_params_cls.return_value.get.return_value = None
 
@@ -55,7 +67,7 @@ class TestSpeedDepConfig:
   """Config-level tests that don't need a TorqueEstimator."""
 
   def test_speed_dep_config_has_entries(self):
-    assert len(SPEED_DEP_CARS) > 0
+    pytest.skip("requires opendbc PR #441 (speed_dependent.toml) — not yet merged")
 
   def test_version_exists(self):
     assert VERSION >= 1
@@ -96,12 +108,10 @@ class TestSpeedBinnedLearning:
       est = TorqueEstimator(make_mock_CP())
       vego = (lo + hi) / 2.0
       est._on_torque_point(0.1, 0.3, vego)
-      assert len(est.speed_bin_points[bin_idx]) == 1, \
-        f"bin {bin_idx} ({lo}-{hi} m/s) should have 1 point at vego={vego}"
+      assert len(est.speed_bin_points[bin_idx]) == 1, f"bin {bin_idx} ({lo}-{hi} m/s) should have 1 point at vego={vego}"
       for j in range(len(SPEED_BIN_BOUNDS)):
         if j != bin_idx:
-          assert len(est.speed_bin_points[j]) == 0, \
-            f"bin {j} should be empty when vego={vego}"
+          assert len(est.speed_bin_points[j]) == 0, f"bin {j} should be empty when vego={vego}"
 
   @patch(PATCH_EXT_PARAMS)
   @patch(PATCH_PARAMS)
@@ -216,7 +226,7 @@ class TestCentersToBoumds:
 
   def test_midpoints_between_centers(self):
     bounds = TorqueEstimatorExt._centers_to_bounds([10.0, 20.0, 30.0])
-    assert bounds[0] == (5, 15.0)   # lo=DEFAULT[0][0], hi=midpoint(10,20)
+    assert bounds[0] == (5, 15.0)  # lo=DEFAULT[0][0], hi=midpoint(10,20)
     assert bounds[1] == (15.0, 25.0)
     assert bounds[2] == (25.0, 40)  # hi=DEFAULT[-1][1]
 
@@ -226,7 +236,7 @@ class TestCentersToBoumds:
 
   def test_edges_use_default_bounds(self):
     bounds = TorqueEstimatorExt._centers_to_bounds([7.0, 35.0])
-    assert bounds[0][0] == 5    # DEFAULT_SPEED_BIN_BOUNDS[0][0]
+    assert bounds[0][0] == 5  # DEFAULT_SPEED_BIN_BOUNDS[0][0]
     assert bounds[-1][1] == 40  # DEFAULT_SPEED_BIN_BOUNDS[-1][1]
     assert bounds[0][1] == pytest.approx((7.0 + 35.0) / 2)
     assert bounds[1][0] == pytest.approx((7.0 + 35.0) / 2)
@@ -497,8 +507,7 @@ class TestUnconfiguredCarToggleOn:
   def test_seeded_with_offline_values(self, mock_params_cls, mock_ext):
     mock_params_cls.return_value.get.return_value = None
     _setup_ext_mock(mock_ext, speed_dep_on=True)
-    est = TorqueEstimator(make_mock_CP(fingerprint=NON_SPEED_DEP_FINGERPRINT,
-                                       lat_accel_factor=2.5, friction=0.18))
+    est = TorqueEstimator(make_mock_CP(fingerprint=NON_SPEED_DEP_FINGERPRINT, lat_accel_factor=2.5, friction=0.18))
     est._on_torque_point(0.1, 0.3, 10.0)
     for i in range(len(SPEED_BIN_BOUNDS)):
       assert est.speed_bin_filtered[i]['latAccelFactor'].x == pytest.approx(2.5)
